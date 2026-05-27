@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ViDEC-UW: Verification-Driven Evidence Transmission for Underwater AUV Inspection
 
 This repository contains a reproducible proof-of-concept implementation for an ATC-style paper proposal:
@@ -180,3 +181,6 @@ scripts/profile_edge.py
 ## 10. Research note
 
 The synthetic dataset is only for reproducibility and sanity checking. For the paper, replace or complement it with real defect datasets, underwater-degraded structural images, or HoloOcean/Unreal-generated inspection scenes.
+=======
+# uavtrans
+>>>>>>> fd6de186c27f82e168f52c619b28bb0a764be4e5
