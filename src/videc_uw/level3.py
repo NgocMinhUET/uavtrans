@@ -56,7 +56,7 @@ def build_level3_event_table(
         row["severity"] = deo["M"]["severity"]
 
         # Replace proxy utilities with true mask-based verification utilities.
-        row["utility_l0"] = min(row["utility_l0"], 0.55)
+        row["utility_l0"] = 0.10
         row["utility_l1"] = verification_score_from_metrics(row, "l1")
         row["utility_l2"] = verification_score_from_metrics(row, "l2")
         row["utility_l3"] = verification_score_from_metrics(row, "l3")
