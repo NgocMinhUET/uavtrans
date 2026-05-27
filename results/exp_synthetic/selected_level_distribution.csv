@@ -1,0 +1,9 @@
+channel,selected_level,count,ratio
+acoustic_good_20kbps,l1,69,0.575
+acoustic_good_20kbps,l2,51,0.425
+acoustic_normal_10kbps,l1,69,0.575
+acoustic_normal_10kbps,l2,51,0.425
+acoustic_poor_1kbps,l0,2,0.016666666666666666
+acoustic_poor_1kbps,l1,118,0.9833333333333333
+data_mule,l2,120,1.0
+optical_5mbps,l2,120,1.0
