@@ -45,8 +45,8 @@ from videc_uw.cloud_verification import (
 )
 from videc_uw.segmenter import (
     SegmenterConfig, eval_jpeg_segmentation, eval_roi_jpeg_segmentation,
-    _compress_mask_rle,
 )
+from videc_uw.udst_transmission import _compress_mask_rle
 from videc_uw.statistics import build_summary_table, run_all_comparisons, bd_rate
 
 
