@@ -1,0 +1,72 @@
+# UDST Experiment Configuration
+# Use this file to record all hyperparameters for reproducibility.
+# Every result table/figure in the paper should be traceable to one config.
+
+experiment:
+  name: "UDST_CRACK500_v1"
+  seed: 42
+  split: "test"                     # always final-report on test
+
+dataset:
+  name: "Crack500"
+  train_images: "Crack500_raw/train/images"
+  train_masks:  "Crack500_raw/train/masks"
+  test_images:  "Crack500_raw/test/images"
+  test_masks:   "Crack500_raw/test/masks"
+  val_images:   "Crack500_raw/val/images"
+  val_masks:    "Crack500_raw/val/masks"
+
+udst:
+  tau_configs:                       # (tau_low, tau_high)
+    - [0.1, 0.4]   # accuracy-oriented
+    - [0.2, 0.6]   # balanced (default / reported as "UDST")
+    - [0.3, 0.7]   # bandwidth-oriented
+    - [0.4, 0.8]   # latency-oriented
+  default_tau: [0.2, 0.6]
+  uncertainty:
+    entropy_weight: 0.6
+    edge_weight: 0.4
+    edge_band_width: 5
+    tau_low: 0.2
+    tau_high: 0.6
+    min_region_area: 100
+  transmission:
+    skeleton_points_per_region: 16
+    compressed_mask_side: 32
+    image_patch_quality: 65
+    image_patch_max_side: 128
+    header_bytes: 32
+    region_table_bytes_per_region: 16
+
+baselines:
+  jpeg_qualities: [10, 20, 35, 50, 65, 75, 85, 95]
+  reference_method: "ROI_JPEG_Q75"   # for BD-Rate computation
+  segmenter:                         # classical crack detector for JPEG eval
+    clahe_clip: 2.0
+    clahe_grid: 8
+    adapt_block: 31
+    adapt_c: 4.0
+    morph_close_k: 3
+    morph_open_k: 2
+    min_component_px: 30
+    use_roi_prior: true              # restrict to GT ROI (models alert prior)
+
+statistics:
+  n_bootstrap: 2000
+  ci_level: 0.95
+  significance_threshold: 0.05
+  paired_test: "wilcoxon"            # wilcoxon | ttest
+
+ablations:
+  uncertainty_sources: ["entropy_only", "edge_only", "combined"]
+  threshold_grid:
+    tau_low:  [0.1, 0.2, 0.3, 0.4]
+    tau_high: [0.4, 0.5, 0.6, 0.7, 0.8]
+  num_classes: [2, 3]
+  tile_sizes: [32, 64, 128]          # for granularity ablation
+
+output:
+  results_root: "results/"
+  main_exp:     "results/udst"
+  ablations:    "results/ablation"
+  figures:      "results/figures"
