@@ -47,6 +47,7 @@ from videc_uw.segmenter import (
     SegmenterConfig, eval_jpeg_segmentation, eval_roi_jpeg_segmentation,
 )
 from videc_uw.udst_transmission import _compress_mask_rle
+from videc_uw.neural_segmenter import load_segmenter_if_available
 from videc_uw.statistics import build_summary_table, run_all_comparisons, bd_rate
 
 
@@ -61,7 +62,11 @@ UDST_TAU_CONFIGS = [
     (0.3, 0.7),   # bandwidth-oriented
     (0.4, 0.8),   # latency-oriented   (trust edge most)
 ]
-SEG_CFG = SegmenterConfig()     # same classical detector for all JPEG variants
+SEG_CFG = SegmenterConfig()     # classical fallback
+
+# Neural segmenter — loaded once globally if checkpoint exists.
+# Populated in main() and referenced by run_jpeg_baselines().
+_NEURAL_SEG = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -97,24 +102,30 @@ def run_jpeg_baselines(
     event_id: str,
 ) -> list[dict]:
     """
-    Full-image JPEG and ROI-JPEG — evaluated end-to-end with classical
-    segmenter on the decoded image.  No assumed Dice=1.0.
+    Full-image JPEG and ROI-JPEG evaluated end-to-end.
+
+    If a trained neural segmenter (_NEURAL_SEG) is available it is used as
+    the cloud detector — giving fair, high-quality task metrics.
+    Falls back to the classical segmenter if no checkpoint is found.
     """
     rows = []
     for q in JPEG_QUALITIES:
-        for method_fn, method_prefix in [
-            (eval_jpeg_segmentation,     "Full_JPEG"),
-            (eval_roi_jpeg_segmentation, "ROI_JPEG"),
-        ]:
-            res = method_fn(image, mask, quality=q, seg_cfg=SEG_CFG)
+        for roi_only, prefix in [(False, "Full_JPEG"), (True, "ROI_JPEG")]:
+            if _NEURAL_SEG is not None:
+                res = _NEURAL_SEG.eval_on_jpeg(image, mask, quality=q,
+                                               roi_only=roi_only)
+            else:
+                fn = eval_roi_jpeg_segmentation if roi_only else eval_jpeg_segmentation
+                res = fn(image, mask, quality=q, seg_cfg=SEG_CFG)
+
             rows.append({
-                "event_id":      event_id,
-                "method":        f"{method_prefix}_Q{q}",
-                "payload_bytes": res["payload_bytes"],
-                "dice":          res["dice"],
-                "iou":           res["iou"],
-                "precision":     res["precision"],
-                "recall":        res["recall"],
+                "event_id":          event_id,
+                "method":            f"{prefix}_Q{q}",
+                "payload_bytes":     res["payload_bytes"],
+                "dice":              res["dice"],
+                "iou":               res["iou"],
+                "precision":         res["precision"],
+                "recall":            res["recall"],
                 "balanced_accuracy": res["balanced_accuracy"],
             })
     return rows
@@ -324,7 +335,23 @@ def main() -> None:
     parser.add_argument("--skip-deo",     action="store_true")
     parser.add_argument("--reference",    type=str,  default="ROI_JPEG_Q75",
                         help="Reference method for BD-Rate and comparisons")
+    parser.add_argument("--checkpoint",   type=Path, default=None,
+                        help="Path to trained crack segmenter .pt file. "
+                             "If provided, replaces classical segmenter for "
+                             "JPEG baseline evaluation.")
+    parser.add_argument("--encoder",      type=str,  default="mobilenet_v2",
+                        help="Encoder used when training the checkpoint.")
     args = parser.parse_args()
+
+    # ── neural segmenter (optional) ──────────────────────────────────────────
+    global _NEURAL_SEG
+    ckpt = args.checkpoint or Path("checkpoints/best_crack_segmenter.pt")
+    _NEURAL_SEG = load_segmenter_if_available(ckpt, encoder=args.encoder)
+    if _NEURAL_SEG is not None:
+        print(f"[UDST] Neural segmenter loaded from {ckpt}")
+    else:
+        print("[UDST] No checkpoint found — using classical segmenter for JPEG baselines")
+        print(f"       (Train one with: python scripts/train_crack_segmenter.py ...)")
 
     # ── reproducibility ──────────────────────────────────────────────────────
     random.seed(args.seed)
@@ -338,7 +365,11 @@ def main() -> None:
         "mask_dir": str(args.mask_dir),
         "jpeg_qualities": JPEG_QUALITIES,
         "udst_tau_configs": UDST_TAU_CONFIGS,
-        "segmenter": SEG_CFG.__dict__,
+        "jpeg_segmenter": (
+            {"type": "neural", "checkpoint": str(ckpt), "encoder": args.encoder}
+            if _NEURAL_SEG is not None
+            else {"type": "classical", **SEG_CFG.__dict__}
+        ),
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     (args.out / "experiment_config.json").write_text(
