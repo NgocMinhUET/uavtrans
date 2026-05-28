@@ -24,6 +24,17 @@ from .uncertainty import (
 )
 
 
+def _to_builtin(value: Any) -> Any:
+    """Recursively convert NumPy scalars/containers to JSON-safe Python types."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {str(k): _to_builtin(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_builtin(v) for v in value]
+    return value
+
+
 @dataclass
 class TransmissionConfig:
     """Configuration for UDST transmission."""
@@ -152,13 +163,14 @@ def compute_geometry_payload(
     skeleton = _extract_skeleton_points(region.mask, config.skeleton_points_per_region)
     
     geometry = {
-        "region_id": region.region_id,
-        "bbox_xywh": region.bbox_xywh,
+        "region_id": int(region.region_id),
+        "bbox_xywh": [int(v) for v in region.bbox_xywh],
         "skeleton_points": skeleton,
-        "area_pixels": region.area_pixels,
+        "area_pixels": int(region.area_pixels),
         "uncertainty": round(region.mean_uncertainty, 3)
     }
     
+    geometry = _to_builtin(geometry)
     json_str = json.dumps(geometry, separators=(",", ":"))
     payload_bytes = len(zlib.compress(json_str.encode(), level=9))
     
@@ -182,14 +194,15 @@ def compute_compressed_mask_payload(
     rle_bytes = _compress_mask_rle(small_mask)
     
     mask_data = {
-        "region_id": region.region_id,
-        "bbox_xywh": region.bbox_xywh,
-        "mask_side": config.compressed_mask_side,
-        "original_size": orig_size,
+        "region_id": int(region.region_id),
+        "bbox_xywh": [int(v) for v in region.bbox_xywh],
+        "mask_side": int(config.compressed_mask_side),
+        "original_size": [int(v) for v in orig_size],
         "uncertainty": round(region.mean_uncertainty, 3),
-        "rle_length": len(rle_bytes)
+        "rle_length": int(len(rle_bytes))
     }
     
+    mask_data = _to_builtin(mask_data)
     header_bytes = len(json.dumps(mask_data, separators=(",", ":")))
     payload_bytes = header_bytes + len(rle_bytes)
     
@@ -229,14 +242,15 @@ def compute_image_patch_payload(
     jpeg_bytes = _encode_jpeg_bytes(patch, config.image_patch_quality)
     
     patch_data = {
-        "region_id": region.region_id,
-        "bbox_xywh": region.bbox_xywh,
-        "patch_bbox": (x0, y0, x1 - x0, y1 - y0),
-        "patch_shape": patch.shape[:2],
+        "region_id": int(region.region_id),
+        "bbox_xywh": [int(v) for v in region.bbox_xywh],
+        "patch_bbox": [int(v) for v in (x0, y0, x1 - x0, y1 - y0)],
+        "patch_shape": [int(v) for v in patch.shape[:2]],
         "uncertainty": round(region.mean_uncertainty, 3),
-        "jpeg_length": len(jpeg_bytes)
+        "jpeg_length": int(len(jpeg_bytes))
     }
     
+    patch_data = _to_builtin(patch_data)
     header_bytes = len(json.dumps(patch_data, separators=(",", ":")))
     payload_bytes = header_bytes + len(jpeg_bytes)
     
